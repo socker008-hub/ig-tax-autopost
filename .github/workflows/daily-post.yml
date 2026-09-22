@@ -1,0 +1,68 @@
+name: daily-ig-post
+
+on:
+  schedule:
+    # 22:00 UTC (일~목) = 07:00 KST (월~금)
+    - cron: "0 22 * * 0-4"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "발행 직전까지만 실행"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+
+      - name: 원고 생성
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: node src/generate.mjs
+
+      - name: 카드 렌더링
+        run: node src/render.mjs
+
+      - name: 이미지 커밋 (공개 URL 확보)
+        id: host
+        run: |
+          DATE=$(date -u -d '+9 hours' +%Y-%m-%d)
+          mkdir -p docs/posts/$DATE
+          cp build/out/*.jpg docs/posts/$DATE/
+          cp build/post.json docs/posts/$DATE/
+          git config user.name  "ig-bot"
+          git config user.email "ig-bot@users.noreply.github.com"
+          git add docs/posts config/used.json
+          git commit -m "post: $DATE"
+          git push
+          echo "base=https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docs/posts/$DATE" >> $GITHUB_OUTPUT
+
+      - name: CDN 반영 대기
+        run: sleep 20
+
+      - name: 인스타그램 발행
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IMAGE_BASE_URL: ${{ steps.host.outputs.base }}
+        run: node src/publish.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: 실패 시 산출물 보관
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-build
+          path: build/

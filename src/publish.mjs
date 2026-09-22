@@ -1,5 +1,5 @@
 // 캐러셀 발행: 자식 컨테이너 N개 → CAROUSEL 컨테이너 → media_publish
-// 사용법: node src/publish.mjs --dry-run   (실제 발행 직전까지만 수행)
+// 사용법: POST_DIR=queue/2026-09-28 IMAGE_BASE_URL=... node src/publish.mjs [--dry-run]
 import fs from "node:fs";
 import path from "node:path";
 
@@ -48,9 +48,10 @@ async function waitReady(creationId, tries = 20) {
   throw new Error("컨테이너가 FINISHED 상태가 되지 않았습니다.");
 }
 
-const post = JSON.parse(fs.readFileSync(path.join(ROOT, "build/post.json"), "utf8"));
-const files = JSON.parse(fs.readFileSync(path.join(ROOT, "build/files.json"), "utf8"));
-const urls = files.map((f) => `${IMAGE_BASE_URL}/${f}`);
+const POST_DIR = path.resolve(ROOT, need("POST_DIR"));
+const post = JSON.parse(fs.readFileSync(path.join(POST_DIR, "post.json"), "utf8"));
+const urls = (post.files || []).map((f) => `${IMAGE_BASE_URL}/${f}`);
+if (urls.length < 2 || urls.length > 10) throw new Error(`캐러셀 이미지 수 이상: ${urls.length}`);
 
 console.log(`[publish] host=${HOST} slides=${urls.length} dry=${DRY}`);
 console.log(`[publish] 캡션 미리보기:\n${post.finalCaption.slice(0, 200)}...\n`);
@@ -94,3 +95,5 @@ fs.appendFileSync(
   path.join(ROOT, "config/published.log"),
   `${post.date}\t${published.id}\t${post.topic}\n`,
 );
+fs.mkdirSync(path.join(ROOT, "build"), { recursive: true });
+fs.writeFileSync(path.join(ROOT, "build/published.json"), JSON.stringify({ id: published.id, date: post.date }));

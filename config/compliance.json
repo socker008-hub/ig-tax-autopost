@@ -25,5 +25,22 @@
   ],
   "required_disclaimer": "개별 사안은 사실관계에 따라 결론이 달라집니다. 일반적인 정보 제공 목적의 게시물입니다.",
   "max_caption_chars": 2200,
-  "max_hashtags": 25
+  "max_hashtags": 20,
+  "term_replacements": {
+    "(?<!구 ?)접대비(?!\\s*\\()": "기업업무추진비"
+  },
+  "fixed_hashtags": [
+    "#세무법인위드플러스",
+    "#조덕희세무사",
+    "#서초세무사"
+  ],
+  "blocked_hashtag_patterns": [
+    "강남",
+    "역삼",
+    "송파",
+    "분당",
+    "판교",
+    "여의도",
+    "마포"
+  ]
 }

@@ -1,0 +1,65 @@
+name: weekly-queue
+
+on:
+  schedule:
+    # 12:00 UTC 일요일 = 21:00 KST 일요일
+    - cron: "0 12 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "week=다음 평일 5건 생성 / regenerate=해당 날짜 새 주제로 재생성 / rerender=수정한 post.json으로 카드만 다시 그림"
+        type: choice
+        options: [week, regenerate, rerender]
+        default: week
+      date:
+        description: "regenerate·rerender 대상 날짜 (예: 2026-09-28)"
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BRANCH: ${{ github.ref_name }}
+      MODE: ${{ inputs.mode || 'week' }}
+      DATE: ${{ inputs.date }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+
+      - name: 원고 생성 · AI 검증 · 카드 렌더
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          case "$MODE" in
+            rerender)   node src/render.mjs --date "$DATE" ;;
+            regenerate) node src/queue-build.mjs --date "$DATE" --force ;;
+            *)          node src/queue-build.mjs ;;
+          esac
+
+      - name: 큐 커밋
+        run: |
+          git config user.name  "ig-bot"
+          git config user.email "ig-bot@users.noreply.github.com"
+          git add queue config/used.json
+          git commit -m "queue: $MODE ${DATE}" || echo "변경 없음"
+          git push
+
+      - name: 이미지 반영 대기
+        run: sleep 20
+
+      - name: 검수 이슈 생성/갱신
+        run: |
+          if [ "$MODE" = "week" ]; then node src/issue.mjs week
+          else node src/issue.mjs single; fi

@@ -1,0 +1,15 @@
+{
+  "name": "ig-tax-autopost",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node src/generate.mjs",
+    "render": "node src/render.mjs",
+    "dry": "node src/publish.mjs --dry-run",
+    "publish": "node src/publish.mjs",
+    "all:dry": "npm run generate && npm run render && npm run dry"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "playwright": "^1.47.0" }
+}

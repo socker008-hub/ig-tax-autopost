@@ -1,4 +1,4 @@
-name: daily-ig-post
+name: daily-publish
 
 on:
   schedule:
@@ -6,6 +6,9 @@ on:
     - cron: "0 22 * * 0-4"
   workflow_dispatch:
     inputs:
+      date:
+        description: "발행할 날짜 (비우면 오늘)"
+        required: false
       dry_run:
         description: "발행 직전까지만 실행"
         type: boolean
@@ -13,10 +16,14 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
-  post:
+  publish:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,45 +31,29 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm install
-      - run: npx playwright install --with-deps chromium
-
-      - name: 원고 생성
+      - name: 승인 여부 확인
+        id: gate
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
-        run: node src/generate.mjs
-
-      - name: 카드 렌더링
-        run: node src/render.mjs
-
-      - name: 이미지 커밋 (공개 URL 확보)
-        id: host
-        run: |
-          DATE=$(date -u -d '+9 hours' +%Y-%m-%d)
-          mkdir -p docs/posts/$DATE
-          cp build/out/*.jpg docs/posts/$DATE/
-          cp build/post.json docs/posts/$DATE/
-          git config user.name  "ig-bot"
-          git config user.email "ig-bot@users.noreply.github.com"
-          git add docs/posts config/used.json
-          git commit -m "post: $DATE"
-          git push
-          echo "base=https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docs/posts/$DATE" >> $GITHUB_OUTPUT
-
-      - name: CDN 반영 대기
-        run: sleep 20
+          INPUT_DATE: ${{ inputs.date }}
+        run: node src/gate.mjs
 
       - name: 인스타그램 발행
+        if: steps.gate.outputs.approved == 'true'
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          IMAGE_BASE_URL: ${{ steps.host.outputs.base }}
+          POST_DIR: queue/${{ steps.gate.outputs.date }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/queue/${{ steps.gate.outputs.date }}
         run: node src/publish.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
 
-      - name: 실패 시 산출물 보관
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: failed-build
-          path: build/
+      - name: 발행 기록
+        if: steps.gate.outputs.approved == 'true' && !inputs.dry_run
+        run: |
+          git config user.name  "ig-bot"
+          git config user.email "ig-bot@users.noreply.github.com"
+          git add config/published.log
+          git commit -m "published: ${{ steps.gate.outputs.date }}"
+          git push
+          ID=$(node -p "require('./build/published.json').id")
+          gh issue comment ${{ steps.gate.outputs.issue }} --repo "$REPO" \
+            --body "${{ steps.gate.outputs.date }} 발행 완료 (media_id: $ID)"

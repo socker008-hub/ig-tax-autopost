@@ -86,6 +86,7 @@ const failures = [];
 for (const date of dates) {
   if (fs.existsSync(path.join(QUEUE, date, "post.json")) && !force) {
     console.log(`[queue] ${date} 이미 있음 → 건너뜀`);
+    built.push(date);
     continue;
   }
   try {

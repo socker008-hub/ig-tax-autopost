@@ -1,0 +1,87 @@
+name: weekly-reel
+
+on:
+  schedule:
+    # 금요일 02:00 UTC = 금요일 11:00 KST
+    - cron: "23 2 * * 5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "영상으로 만들 큐 날짜 (비우면 이번 주에서 자동 선택)"
+        required: false
+      voice:
+        description: "내레이션 목소리"
+        type: choice
+        options: [ko-KR-InJoonNeural, ko-KR-SunHiNeural, ko-KR-HyunsuMultilingualNeural]
+        default: ko-KR-InJoonNeural
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      REEL_VOICE: ${{ inputs.voice || 'ko-KR-InJoonNeural' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: pip install edge-tts
+
+      - name: 대상 날짜 결정
+        id: pick
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            echo "date=${{ inputs.date }}" >> $GITHUB_OUTPUT
+          else
+            # 이번 주 큐 중 발행 기록에 있는 가장 최근 날짜 (= 실제로 나간 게시물)
+            D=$(ls queue | sort | awk -v t="$(date -u -d '+9 hours' +%F)" '$1<=t' | tail -5 \
+                | while read d; do grep -q "^$d" config/published.log && echo "$d"; done | tail -1)
+            [ -z "$D" ] && D=$(ls queue | sort | tail -1)
+            echo "date=$D" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 릴스 생성
+        run: node src/reel-build.mjs --date ${{ steps.pick.outputs.date }}
+
+      - name: 커밋
+        run: |
+          git config user.name  "ig-bot"
+          git config user.email "ig-bot@users.noreply.github.com"
+          git add reels
+          git commit -m "reel: ${{ steps.pick.outputs.date }}" || echo "변경 없음"
+          git push
+
+      - name: 다운로드용 아티팩트
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-${{ steps.pick.outputs.date }}
+          path: |
+            reels/${{ steps.pick.outputs.date }}/reel.mp4
+            reels/${{ steps.pick.outputs.date }}/cover.png
+            reels/${{ steps.pick.outputs.date }}/caption.txt
+          retention-days: 30
+
+      - name: 안내 이슈 등록
+        run: |
+          D=${{ steps.pick.outputs.date }}
+          SEC=$(node -p "require('./reels/'+process.env.D+'/meta.json').seconds" 2>/dev/null || echo "?")
+          gh issue create --repo "$REPO" --label review-queue \
+            --title "릴스 준비 완료: $D (${SEC}초)" \
+            --body "$(printf '폰에서 받아 인스타 앱으로 직접 올리세요. 앱에서 올려야 인스타 음원을 쓸 수 있습니다.\n\n**영상**\nhttps://github.com/%s/raw/%s/reels/%s/reel.mp4\n\n**표지 미리보기**\n<img src="https://raw.githubusercontent.com/%s/%s/reels/%s/cover.png" width="200">\n\n**캡션**\n\n```\n%s\n```\n\n업로드 순서: 릴스 → 영상 선택 → 음원 추가(선택) → 커버는 1초 지점 → 캡션 붙여넣기' \
+              "$REPO" "${{ github.ref_name }}" "$D" "$REPO" "${{ github.ref_name }}" "$D" "$(cat reels/$D/caption.txt)")"
+        env:
+          D: ${{ steps.pick.outputs.date }}

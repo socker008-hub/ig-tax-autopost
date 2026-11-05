@@ -40,6 +40,7 @@ jobs:
       - run: npm install
       - run: npx playwright install --with-deps chromium
       - run: pip install edge-tts
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: 대상 날짜 결정
         id: pick

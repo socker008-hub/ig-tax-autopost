@@ -69,7 +69,7 @@ export function reelHtml(seg, index, total, axisLabel) {
   </main>
   <footer>
     <div class="firm">${BRAND.firm}<span>${BRAND.handle}</span></div>
-    <div class="cta">${seg.kind === "outro" ? "프로필 링크" : seg.kind === "cover" ? "끝까지 보기" : ""}</div>
+    <div class="cta">${seg.kind === "outro" ? "피드에서 자세히" : seg.kind === "cover" ? "끝까지 보기" : ""}</div>
   </footer>
 </body></html>`;
 }

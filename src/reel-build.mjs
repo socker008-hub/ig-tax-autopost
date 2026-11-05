@@ -7,11 +7,13 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
 import { reelHtml } from "./reel-template.mjs";
+import { claude, parseJson } from "./lib/claude.mjs";
+import { REEL_SYSTEM, reelUser } from "./lib/prompts.mjs";
 import { QUEUE, ROOT, readJson, writeJson, arg, assertDate } from "./lib/util.mjs";
 
 const VOICE = process.env.REEL_VOICE || "ko-KR-InJoonNeural"; // 여성: ko-KR-SunHiNeural
-const RATE = process.env.REEL_RATE || "+8%";
-const MAX_BODY = Number(process.env.REEL_MAX_BODY || 3); // 본문 장면 수
+const RATE = process.env.REEL_RATE || "+14%";
+const MAX_BODY = Number(process.env.REEL_MAX_BODY || 2); // 본문 장면 수
 const SILENT = process.argv.includes("--silent");
 const FPS = 30;
 
@@ -25,30 +27,57 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "pipe"] }).toString();
 
-// ── 1. 장면 구성: 표지 + 본문 3 + 마무리 ────────────────────
-const slides = post.slides || [];
-const cover = slides.find((s) => s.kind === "cover") || slides[0];
-const bodies = slides.filter((s) => s.kind === "body").slice(0, MAX_BODY);
-const outro = slides.find((s) => s.kind === "outro") || slides.at(-1);
+// ── 1. 릴스 전용 대본 ───────────────────────────────────────
+// 카드뉴스 원고를 그대로 읽으면 90초를 넘고 화면 문구도 넘친다.
+// 검수를 마친 원고를 40~50초 분량으로 다시 압축한다.
+const speak = (s = "") =>
+  s.replace(/\([^)]*\)/g, " ").replace(/[①-⑩]/g, " ").replace(/\s+/g, " ").trim();
 
-// 내레이션은 한 호흡에 읽히도록 다듬는다 (괄호 주석·조문 나열 제거)
-const speak = (s) =>
-  s
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/[①-⑩]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const rules = readJson(path.join(ROOT, "config/compliance.json"));
+let segments = null;
+let reelCaption = null;
 
-const segments = [
-  { kind: "cover", title: cover.title, body: cover.body, say: `${cover.title}. ${cover.body}` },
-  ...bodies.map((s) => ({ kind: "body", title: s.title, body: s.body, say: `${s.title}. ${s.body}` })),
-  {
-    kind: "outro",
-    title: "정리하면",
-    body: (outro.body || "").split("\n").filter(Boolean).slice(0, 3).join("\n"),
-    say: `${(outro.body || "").split("\n").filter(Boolean).slice(0, 3).join(" ")} 자세한 검토가 필요하시면 프로필 링크로 문의 주세요.`,
-  },
-].map((s) => ({ ...s, say: speak(s.say) }));
+if (process.env.ANTHROPIC_API_KEY) {
+  try {
+    const script = parseJson(
+      await claude({
+        system: REEL_SYSTEM,
+        user: reelUser(post),
+        model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
+        maxTokens: 2000,
+      }),
+    );
+    const sc = script.scenes || [];
+    if (sc.length < 3 || sc.length > 5) throw new Error(`장면 수 이상: ${sc.length}`);
+    const text = [script.caption, ...sc.flatMap((s) => [s.title, s.body, s.say])].join("\n");
+    const hits = rules.blocked_patterns.filter((p) => new RegExp(p).test(text));
+    if (hits.length) throw new Error(`금칙어: ${hits.join(", ")}`);
+    segments = sc.map((s) => ({ ...s, say: speak(s.say) }));
+    reelCaption = script.caption;
+    console.log(`[reel] 대본 ${segments.length}장면, 내레이션 ${segments.reduce((a, s) => a + s.say.length, 0)}자`);
+  } catch (e) {
+    console.warn(`[reel] 대본 생성 실패 → 원고에서 직접 추출: ${e.message}`);
+  }
+}
+
+if (!segments) {
+  // 폴백: 원고에서 잘라 쓴다 (길어질 수 있음)
+  const slides = post.slides || [];
+  const cover = slides.find((s) => s.kind === "cover") || slides[0];
+  const bodies = slides.filter((s) => s.kind === "body").slice(0, MAX_BODY);
+  const outro = slides.find((s) => s.kind === "outro") || slides.at(-1);
+  const cut = (s = "", n = 100) => (s.length <= n ? s : s.slice(0, s.lastIndexOf(".", n) + 1 || n));
+  segments = [
+    { kind: "cover", title: cover.title, body: cover.body, say: `${cover.title}. ${cover.body}` },
+    ...bodies.map((s) => ({ kind: "body", title: s.title, body: cut(s.body, 60), say: `${s.title}. ${cut(s.body)}` })),
+    {
+      kind: "outro",
+      title: "정리하면",
+      body: (outro.body || "").split("\n").filter(Boolean).slice(0, 2).join("\n"),
+      say: `${(outro.body || "").split("\n").filter(Boolean)[0] || ""} 같은 내용을 카드뉴스로 정리한 게시물이 피드에 있습니다.`,
+    },
+  ].map((s) => ({ ...s, say: speak(s.say) }));
+}
 
 // ── 2. 음성 ────────────────────────────────────────────────
 function duration(file) {
@@ -131,9 +160,10 @@ for (const p of [...parts, listFile, silentMp4]) fs.rmSync(p, { force: true });
 // ── 5. 표지 이미지 + 캡션 ──────────────────────────────────
 fs.copyFileSync(segments[0].img, path.join(OUT, "cover.png"));
 const tags = (post.hashtags || []).slice(0, 12).join(" ");
+const body = reelCaption || (post.caption || "").split("\n\n").slice(0, 2).join("\n\n");
 fs.writeFileSync(
   path.join(OUT, "caption.txt"),
-  `${(post.caption || "").split("\n\n")[0]}\n\n자세한 내용은 프로필 링크의 피드 게시물에서 확인하세요.\n\n개별 사안은 사실관계에 따라 결론이 달라집니다.\n\n${tags}\n`,
+  `${body}\n\n같은 내용을 카드뉴스로 정리한 게시물이 피드에 있습니다.\n\n${rules.required_disclaimer}\n\n${tags}\n`,
 );
 writeJson(path.join(OUT, "meta.json"), {
   date, topic: post.topic, axis: post.axis, seconds: Number(total.toFixed(1)),

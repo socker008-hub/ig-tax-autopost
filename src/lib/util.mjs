@@ -54,7 +54,11 @@ export function arg(name) {
 }
 
 export function assertDate(d) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) {
+  // --date 뒤에 값이 없으면 arg() 가 true 를 돌려준다. 입력칸이 빈 경우다.
+  if (d === true || d === undefined || d === "") {
+    throw new Error("날짜가 비어 있습니다. date 칸에 YYYY-MM-DD 형식으로 입력하세요 (예: 2026-11-10)");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
     throw new Error(`날짜 형식이 잘못됐습니다: "${d}" → YYYY-MM-DD 로 입력하세요`);
   }
   return d;

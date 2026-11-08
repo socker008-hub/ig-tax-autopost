@@ -42,6 +42,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          if [ "$MODE" != "week" ] && [ -z "$DATE" ]; then
+            echo "::error::$MODE 모드는 date 칸에 날짜(YYYY-MM-DD)를 넣어야 합니다. mode 를 바꾸면 date 칸이 비워지니 mode 를 먼저 고르고 날짜를 입력하세요."
+            exit 1
+          fi
           case "$MODE" in
             rerender)   node src/render.mjs --date "$DATE" ;;
             regenerate) node src/queue-build.mjs --date "$DATE" --force ;;

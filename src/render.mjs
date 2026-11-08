@@ -5,6 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 import { slideHtml } from "./template.mjs";
+import { themeFor } from "./themes.mjs";
 import { finalize, validateShape } from "./lib/compliance.mjs";
 import { ROOT, QUEUE, BUILD, readJson, writeJson, arg, assertDate } from "./lib/util.mjs";
 
@@ -12,14 +13,21 @@ export async function renderPost(post, outDir) {
   fs.mkdirSync(outDir, { recursive: true });
   for (const f of fs.readdirSync(outDir)) if (f.endsWith(".jpg")) fs.rmSync(path.join(outDir, f));
 
-  const browser = await chromium.launch();
+  // 날짜를 씨앗으로 팔레트·레이아웃을 고른다 (게시물 7장은 같은 조합)
+  const theme = themeFor(process.env.THEME_SEED || post.date || post.topic);
+  post.theme = `${theme.id}/${theme.layout}/${theme.titleFont.id}`;
+
+  const browser = await chromium.launch(
+    process.env.CHROME_CHANNEL ? { channel: process.env.CHROME_CHANNEL } : {},
+  );
   const page = await browser.newPage({ viewport: { width: 1080, height: 1350 } });
   const files = [];
   try {
     for (const [i, slide] of post.slides.entries()) {
-      await page.setContent(slideHtml({ ...slide, axisLabel: post.axis }, i, post.slides.length), {
-        waitUntil: "networkidle",
-      });
+      await page.setContent(
+        slideHtml({ ...slide, axisLabel: post.axis }, i, post.slides.length, theme),
+        { waitUntil: "networkidle" },
+      );
       await page.evaluate(() => document.fonts.ready);
       const name = String(i + 1).padStart(2, "0") + ".jpg";
       const p = path.join(outDir, name);
@@ -35,7 +43,7 @@ export async function renderPost(post, outDir) {
 }
 
 // ── 단독 실행: 재렌더 ─────────────────────────────────────
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const date = assertDate(arg("date"));
   const dir = path.join(QUEUE, date);
   const post = readJson(path.join(dir, "post.json"));

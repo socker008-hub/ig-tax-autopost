@@ -3,10 +3,11 @@
 //   node src/issue.mjs single <날짜>          → 기존 이슈에서 해당 날짜 체크 해제 + 새 미리보기 댓글
 import path from "node:path";
 import { BUILD, readJson, kstToday } from "./lib/util.mjs";
+import { L } from "./lib/locale.mjs";
 import { section, header, checkboxRe } from "./lib/issue-md.mjs";
 
 const { GH_TOKEN, REPO, BRANCH = "main" } = process.env;
-const LABEL = "review-queue";
+const LABEL = L.issueLabel;
 const mode = process.argv[2] || "week";
 
 async function gh(method, url, body) {
@@ -32,7 +33,7 @@ if (!dates.length && !failures.length) {
   process.exit(0);
 }
 
-await gh("POST", "/labels", { name: LABEL, color: "E89B2D", description: "인스타 게시물 검수 대기" });
+await gh("POST", "/labels", { name: LABEL, color: "E89B2D", description: `인스타 게시물 ${L.ui.queueTitle}` });
 const open = await gh("GET", `/issues?labels=${LABEL}&state=open&per_page=50`);
 const opts = { repo: REPO, branch: BRANCH };
 
@@ -51,8 +52,8 @@ if (mode === "week") {
     }
   }
   const title = dates.length
-    ? `검수 대기: ${dates[0].slice(5)} ~ ${dates.at(-1).slice(5)} (${dates.length}건)`
-    : "검수 대기: 생성 실패 확인 필요";
+    ? `${L.ui.queueTitle}: ${dates[0].slice(5)} ~ ${dates.at(-1).slice(5)} (${dates.length}건)`
+    : `${L.ui.queueTitle}: 생성 실패 확인 필요`;
   const body = header(dates) + dates.map((d) => section(d, opts)).join("\n") + failText;
   const created = await gh("POST", "/issues", { title, body, labels: [LABEL] });
   console.log(`[issue] 생성 #${created.number} ${created.html_url}`);
@@ -74,7 +75,7 @@ if (mode === "week") {
     console.log(`[issue] #${target.number} 갱신 (${date})`);
   } else {
     const created = await gh("POST", "/issues", {
-      title: `검수 대기: ${date.slice(5)} (1건)`,
+      title: `${L.ui.queueTitle}: ${date.slice(5)} (1건)`,
       body: header([date]) + section(date, { ...opts, bust }),
       labels: [LABEL],
     });

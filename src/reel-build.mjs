@@ -7,6 +7,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
 import { reelHtml } from "./reel-template.mjs";
+import { themeFor } from "./themes.mjs";
 import { claude, parseJson } from "./lib/claude.mjs";
 import { REEL_SYSTEM, reelUser } from "./lib/prompts.mjs";
 import { QUEUE, ROOT, readJson, writeJson, arg, assertDate } from "./lib/util.mjs";
@@ -101,11 +102,12 @@ console.log(`[reel] 총 ${total.toFixed(1)}초 / ${segments.length}장면`);
 if (total > 90) console.warn("[reel] 90초를 넘습니다. REEL_MAX_BODY 를 줄이세요.");
 
 // ── 3. 프레임 ──────────────────────────────────────────────
+const reelTheme = themeFor(process.env.THEME_SEED || post.date || post.topic);
 const browser = await chromium.launch(process.env.CHROME_CHANNEL ? { channel: process.env.CHROME_CHANNEL } : {});
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
 try {
   for (const [i, seg] of segments.entries()) {
-    await page.setContent(reelHtml(seg, i, segments.length, post.axis), { waitUntil: "networkidle" });
+    await page.setContent(reelHtml(seg, i, segments.length, post.axis, reelTheme), { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     seg.img = path.join(OUT, `${String(i + 1).padStart(2, "0")}.png`);
     await page.screenshot({ path: seg.img });

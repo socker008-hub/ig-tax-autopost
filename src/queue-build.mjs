@@ -4,24 +4,28 @@
 import fs from "node:fs";
 import path from "node:path";
 import { claude, parseJson } from "./lib/claude.mjs";
-import { writerSystem, writerUser, CHECKER_SYSTEM, checkerUser } from "./lib/prompts.mjs";
+import {
+  writerSystem, writerUser, CHECKER_SYSTEM, checkerUser,
+  writerSystemJa, writerUserJa, CHECKER_SYSTEM_JA,
+} from "./lib/prompts.mjs";
+import { L, isJa } from "./lib/locale.mjs";
 import { finalize, validateShape } from "./lib/compliance.mjs";
 import { renderPost } from "./render.mjs";
 import {
-  ROOT, QUEUE, BUILD, readJson, writeJson, nextWeekdays, weekdayIdx, arg, assertDate,
+  ROOT, QUEUE, BUILD, readJson, writeJson, nextWeekdays, weekdayIdx, slotIndex, arg, assertDate,
 } from "./lib/util.mjs";
 
 const WRITER_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
 const CHECKER_MODEL = process.env.CHECKER_MODEL || WRITER_MODEL;
 
-const topics = readJson(path.join(ROOT, "config/topics.json"));
-const rules = readJson(path.join(ROOT, "config/compliance.json"));
-const usedPath = path.join(ROOT, "config/used.json");
+const topics = readJson(path.join(ROOT, L.topics));
+const rules = readJson(path.join(ROOT, L.compliance));
+const usedPath = path.join(ROOT, isJa ? "config/used.ja.json" : "config/used.json");
 const used = readJson(usedPath, []);
 
 const onlyDate = arg("date");
 const force = Boolean(arg("force"));
-const dates = onlyDate ? [assertDate(onlyDate)] : nextWeekdays(5);
+const dates = onlyDate ? [assertDate(onlyDate)] : nextWeekdays(L.perWeek, L.publishDays);
 
 function pickTopic(axisKey, exclude) {
   const pool = topics.axes[axisKey].pool;
@@ -31,7 +35,9 @@ function pickTopic(axisKey, exclude) {
 }
 
 async function buildOne(date) {
-  const axisKey = topics.rotation[weekdayIdx(date) % topics.rotation.length];
+  // 주 2회 계정은 요일이 둘뿐이라, 슬롯 순번으로 돌려야 네 축이 모두 쓰인다
+  const rotIdx = isJa ? slotIndex(date, L.publishDays) : weekdayIdx(date);
+  const axisKey = topics.rotation[rotIdx % topics.rotation.length];
   const axis = topics.axes[axisKey];
   const tried = [];
 
@@ -42,13 +48,21 @@ async function buildOne(date) {
 
     // 1) 작성
     const draft = parseJson(
-      await claude({ system: writerSystem(axis), user: writerUser(topic, date), model: WRITER_MODEL }),
+      await claude({
+        system: isJa ? writerSystemJa(axis) : writerSystem(axis),
+        user: isJa ? writerUserJa(topic, date) : writerUser(topic, date),
+        model: WRITER_MODEL,
+      }),
     );
     validateShape(draft);
 
     // 2) 검증
     const check = parseJson(
-      await claude({ system: CHECKER_SYSTEM, user: checkerUser(topic, draft), model: CHECKER_MODEL }),
+      await claude({
+        system: isJa ? CHECKER_SYSTEM_JA : CHECKER_SYSTEM,
+        user: checkerUser(topic, draft),
+        model: CHECKER_MODEL,
+      }),
     );
     if (check.verdict === "reject") {
       console.log(`[queue] 검증자 반려: ${(check.notes || []).join(" / ")}`);
@@ -86,7 +100,6 @@ const failures = [];
 for (const date of dates) {
   if (fs.existsSync(path.join(QUEUE, date, "post.json")) && !force) {
     console.log(`[queue] ${date} 이미 있음 → 건너뜀`);
-    built.push(date);
     continue;
   }
   try {

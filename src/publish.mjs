@@ -92,7 +92,7 @@ const published = await api(`${IG_USER_ID}/media_publish`, { creation_id: carous
 console.log(`[publish] 발행 완료 media_id=${published.id}`);
 
 fs.appendFileSync(
-  path.join(ROOT, "config/published.log"),
+  path.join(ROOT, "config", process.env.LOCALE === "ja" ? "published.ja.log" : "published.log"),
   `${post.date}\t${published.id}\t${post.topic}\n`,
 );
 fs.mkdirSync(path.join(ROOT, "build"), { recursive: true });

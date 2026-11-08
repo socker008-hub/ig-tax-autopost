@@ -1,7 +1,8 @@
 // 오늘(또는 INPUT_DATE) 게시물이 검수 이슈에서 체크됐는지 확인 → GITHUB_OUTPUT 에 기록
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, QUEUE, kstToday, assertDate } from "./lib/util.mjs";
+import { QUEUE, PUBLISHED_LOG, kstToday, assertDate } from "./lib/util.mjs";
+import { L } from "./lib/locale.mjs";
 import { checkboxRe } from "./lib/issue-md.mjs";
 
 const { GH_TOKEN, REPO, GITHUB_OUTPUT, INPUT_DATE } = process.env;
@@ -17,13 +18,13 @@ function out(approved, reason, issue = "") {
 
 if (!fs.existsSync(path.join(QUEUE, date, "post.json"))) out(false, "큐에 게시물 없음");
 
-const log = path.join(ROOT, "config/published.log");
+const log = PUBLISHED_LOG;
 if (fs.existsSync(log) && fs.readFileSync(log, "utf8").includes(`${date}\t`)) {
   out(false, "이미 발행된 날짜");
 }
 
 const res = await fetch(
-  `https://api.github.com/repos/${REPO}/issues?labels=review-queue&state=open&per_page=50`,
+  `https://api.github.com/repos/${REPO}/issues?labels=${L.issueLabel}&state=open&per_page=50`,
   { headers: { authorization: `Bearer ${GH_TOKEN}`, accept: "application/vnd.github+json" } },
 );
 if (!res.ok) throw new Error(`이슈 조회 실패 ${res.status} ${await res.text()}`);

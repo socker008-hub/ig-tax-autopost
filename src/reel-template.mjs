@@ -1,11 +1,6 @@
 // 릴스 프레임 1장을 1080x1920(9:16) HTML로 렌더링
-const T = {
-  ink: "#14263A",
-  paper: "#F2F0EA",
-  goldOnInk: "#F0A63A",
-  goldOnPaper: "#C47D14",
-  muted: "#7C8B9B",
-};
+// 팔레트·서체는 피드 카드와 같은 테마를 쓴다 (themes.mjs)
+import { themeFor } from "./themes.mjs";
 
 const esc = (s = "") =>
   String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
@@ -27,12 +22,14 @@ function titleSize(kind, len) {
   return Math.round(base * 0.72);
 }
 
-export function reelHtml(seg, index, total, axisLabel) {
+export function reelHtml(seg, index, total, axisLabel, theme) {
+  const t = theme || themeFor(axisLabel || "default");
   const dark = seg.kind === "cover" || seg.kind === "outro";
-  const bg = dark ? T.ink : T.paper;
-  const fg = dark ? T.paper : T.ink;
-  const sub = dark ? "rgba(242,240,234,0.62)" : T.muted;
-  const gold = dark ? T.goldOnInk : T.goldOnPaper;
+  const bg = dark ? t.dark : t.light;
+  const fg = dark ? t.light : t.dark;
+  const sub = dark ? t.mutedOnDark : t.mutedOnLight;
+  const gold = dark ? t.accentOnDark : t.accentOnLight;
+  const F = t.titleFont;
   const pct = Math.round(((index + 1) / total) * 100);
 
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -51,8 +48,8 @@ export function reelHtml(seg, index, total, axisLabel) {
         font-family:"Nanum Myeongjo","Noto Serif CJK KR",serif;font-size:30px;line-height:50px;text-align:center}
   .axis{font-size:30px;letter-spacing:-0.01em;color:${sub}}
   main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:48px}
-  h1{font-family:"Nanum Myeongjo","Noto Serif CJK KR",serif;font-size:${titleSize(seg.kind, (seg.title || "").length)}px;
-     line-height:1.3;letter-spacing:-0.02em;word-break:keep-all}
+  h1{font-family:${F.css};font-weight:${F.weight};font-size:${titleSize(seg.kind, (seg.title || "").length)}px;
+     line-height:1.3;letter-spacing:${F.tracking};word-break:keep-all}
   p{font-size:${bodySize((seg.body || "").length)}px;line-height:1.66;letter-spacing:-0.015em;
     word-break:keep-all;white-space:pre-line;color:${dark ? "rgba(242,240,234,0.9)" : "rgba(20,38,58,0.88)"}}
   footer{display:flex;align-items:center;justify-content:space-between;

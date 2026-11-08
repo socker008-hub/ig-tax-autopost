@@ -1,0 +1,60 @@
+name: daily-publish-ja
+
+on:
+  schedule:
+    # 23:00 UTC (월·목) = 08:00 KST (화·금)
+    - cron: "0 23 * * 1,4"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "발행할 날짜 (비우면 오늘)"
+        required: false
+      dry_run:
+        description: "발행 직전까지만 실행"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      LOCALE: ja
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 승인 여부 확인
+        id: gate
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+        run: node src/gate.mjs
+
+      - name: 인스타그램 발행
+        if: steps.gate.outputs.approved == 'true'
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN_JA }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID_JA }}
+          POST_DIR: queue-ja/${{ steps.gate.outputs.date }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/queue-ja/${{ steps.gate.outputs.date }}
+        run: node src/publish.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: 발행 기록
+        if: steps.gate.outputs.approved == 'true' && !inputs.dry_run
+        run: |
+          git config user.name  "ig-bot"
+          git config user.email "ig-bot@users.noreply.github.com"
+          git add config/published.ja.log
+          git commit -m "published: ${{ steps.gate.outputs.date }}"
+          git push
+          ID=$(node -p "require('./build/published.json').id")
+          gh issue comment ${{ steps.gate.outputs.issue }} --repo "$REPO" \
+            --body "${{ steps.gate.outputs.date }} 발행 완료 (media_id: $ID)"

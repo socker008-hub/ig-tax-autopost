@@ -23,6 +23,8 @@ const KO = {
   fontCss:
     '<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">' +
     '<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700&family=Noto+Serif+KR:wght@700&display=swap" rel="stylesheet">',
+  // 한국어는 띄어쓰기가 있어 keep-all 이 어절 단위로 끊어 준다
+  breakCss: "word-break:keep-all;overflow-wrap:break-word",
   sans: '"Pretendard Variable",Pretendard,"Noto Sans KR",sans-serif',
   serif: '"Nanum Myeongjo","Noto Serif KR",serif',
   serifAlt: '"Noto Serif KR","Nanum Myeongjo",serif',
@@ -48,6 +50,12 @@ const JA = {
   // 일본어는 가나·일본식 자형이 필요해 Noto Sans/Serif JP 를 쓴다
   fontCss:
     '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Serif+JP:wght@600;700&display=swap" rel="stylesheet">',
+  // 일본어는 띄어쓰기가 없어 keep-all 을 쓰면 줄이 끊기지 않고 넘친다.
+  // normal + 금칙처리(line-break:strict)가 일본어 조판의 기본이다.
+  // auto-phrase 는 문절 단위로 끊어 「課税され/るか」같은 어색한 분리를 막는다.
+  // 미지원 브라우저에서는 이 줄만 무시되고 앞의 normal 이 남는다.
+  breakCss:
+    "word-break:normal;word-break:auto-phrase;line-break:strict;overflow-wrap:break-word",
   sans: '"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif',
   serif: '"Noto Serif JP","Hiragino Mincho ProN","Yu Mincho",serif',
   serifAlt: '"Noto Serif JP",serif',

@@ -27,6 +27,13 @@ export function section(date, { repo, branch, bust = "" }) {
 
 <p>${imgs}</p>
 
+<details><summary>해시태그만 (첫 댓글용)</summary>
+
+\`\`\`
+${(post.hashtags || []).join(" ")}
+\`\`\`
+</details>
+
 <details><summary>캡션 전문</summary>
 
 \`\`\`

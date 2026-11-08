@@ -86,7 +86,7 @@ export function slideHtml(slide, index, total, theme) {
               font-weight:${F.weight};font-size:300px;line-height:1;color:${accent};
               opacity:${dark ? 0.15 : 0.11};letter-spacing:-0.04em}
       main{justify-content:flex-start;padding-top:64px}
-      h1{max-width:13ch}`;
+      h1{max-width:10.5em}`;
     inner = `<div class="bignum">${index === 0 ? L.seal : String(index + 1).padStart(2, "0")}</div>
       <div class="top">${meta}</div><main>${title}${body}${note}</main>`;
   } else if (t.layout === "rule") {
@@ -94,15 +94,15 @@ export function slideHtml(slide, index, total, theme) {
       .top{display:none}
       .rule{width:148px;height:10px;background:${accent};margin-bottom:12px}
       .axis2{font-size:26px;color:${sub};margin-bottom:30px}
-      h1{max-width:14ch}`;
+      h1{max-width:11em}`;
     inner = `<main><div class="rule"></div>
         <div class="axis2">${esc(slide.axisLabel || "")}</div>${title}${body}${note}</main>`;
   } else if (t.layout === "panel") {
     extraCss = `
       .panel{background:${panelBg};border-left:6px solid ${accent};padding:40px 44px}
-      .panel p{margin:0;max-width:22ch}
+      .panel p{margin:0;max-width:20em}
       .panel .note{margin-top:26px;border-left:none;padding-left:0}
-      h1{max-width:14ch}`;
+      h1{max-width:11em}`;
     inner = `<div class="top">${meta}</div>
       <main>${title}${body || note ? `<div class="panel">${body}${note}</div>` : ""}</main>`;
   } else if (t.layout === "band") {
@@ -113,7 +113,7 @@ export function slideHtml(slide, index, total, theme) {
       body{padding-top:0;padding-left:0;padding-right:0}
       .band{background:${accent};color:${bandFg};padding:120px ${t.padX}px 56px;}
       .band .axis3{font-size:26px;opacity:0.72;margin-bottom:26px}
-      .band h1{color:${bandFg};max-width:15ch}
+      .band h1{color:${bandFg};max-width:11.5em}
       main{padding:64px ${t.padX}px 0;justify-content:flex-start;flex:1}
       footer{margin:0 ${t.padX}px}`;
     inner = `<div class="band"><div class="axis3">${esc(slide.axisLabel || "")}</div>${title}</div>
@@ -126,10 +126,10 @@ export function slideHtml(slide, index, total, theme) {
       main:before{content:"";position:absolute;left:-52px;top:6px;bottom:6px;width:3px;background:${hair}}
       main:after{content:"";position:absolute;left:-55px;top:6px;width:9px;height:72px;background:${accent}}
       footer{margin-left:52px}
-      h1{max-width:14ch}`;
+      h1{max-width:11em}`;
     inner = `<div class="top">${meta}</div><main>${title}${body}${note}</main>`;
   } else {
-    extraCss = `h1{max-width:15ch}`;
+    extraCss = `h1{max-width:11.5em}`;
     inner = `<div class="top">${meta}</div><main>${title}${body}${note}</main>`;
   }
 
@@ -154,11 +154,11 @@ ${L.fontCss}
   main{flex:1;display:flex;flex-direction:column;justify-content:${justify};gap:34px;
        position:relative;z-index:1}
   h1{font-family:${titleFamily};font-weight:${F.weight};font-size:${ts}px;line-height:1.32;
-     letter-spacing:${F.tracking};word-break:keep-all;color:${titleColor}}
-  p{font-size:${bs}px;line-height:1.66;letter-spacing:-0.01em;word-break:keep-all;
-    white-space:pre-line;max-width:24ch;color:${bodyFg}}
+     letter-spacing:${F.tracking};${L.breakCss};color:${titleColor}}
+  p{font-size:${bs}px;line-height:1.66;letter-spacing:-0.01em;${L.breakCss};
+    white-space:pre-line;max-width:22em;color:${bodyFg}}
   .note{font-size:26px;line-height:1.5;color:${sub};border-left:4px solid ${accent};
-        padding-left:20px;max-width:26ch}
+        padding-left:20px;max-width:24em}
   footer{display:flex;align-items:flex-end;justify-content:space-between;
          border-top:1px solid ${hair};padding-top:26px;position:relative;z-index:1}
   .firm{font-size:26px;letter-spacing:-0.01em}

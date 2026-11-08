@@ -36,7 +36,7 @@ const JA = {
   issueLabel: "review-queue-ja",
   publishDays: [1, 4], // 화·금
   perWeek: 2,
-  brand: { firm: "税務法人ウィズプラス", handle: "@withplus.jp" },
+  brand: { firm: "税務法人ウィズプラス", handle: "@withplus_jp" },
   seal: "韓",
   ui: {
     swipe: "スワイプ →",

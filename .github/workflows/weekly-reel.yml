@@ -64,7 +64,13 @@ jobs:
           git config user.email "ig-bot@users.noreply.github.com"
           git add reels
           git commit -m "reel: ${{ steps.pick.outputs.date }}" || echo "변경 없음"
-          git push
+          # 다른 워크플로가 같은 브랜치에 먼저 푸시했을 수 있다
+          ok=0
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${BRANCH:-main}" && git push && { ok=1; break; }
+            echo "푸시 충돌, 재시도 $i"; sleep 5
+          done
+          [ "$ok" = 1 ] || { echo "::error::푸시에 3회 실패했습니다"; exit 1; }
 
       - name: 다운로드용 아티팩트
         uses: actions/upload-artifact@v4

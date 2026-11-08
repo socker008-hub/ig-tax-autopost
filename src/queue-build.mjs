@@ -10,6 +10,7 @@ import {
 } from "./lib/prompts.mjs";
 import { L, isJa } from "./lib/locale.mjs";
 import { finalize, validateShape } from "./lib/compliance.mjs";
+import { findIssues, polishSystem, polishUser, applyPolish } from "./lib/polish.mjs";
 import { renderPost } from "./render.mjs";
 import {
   ROOT, QUEUE, BUILD, readJson, writeJson, nextWeekdays, weekdayIdx, slotIndex, arg, assertDate,
@@ -71,7 +72,36 @@ async function buildOne(date) {
     const post = check.post?.slides ? check.post : draft;
     validateShape(post);
 
-    // 3) 용어·해시태그·금칙어
+    // 3) 길이·표기 강제 — 지시만으로는 지켜지지 않아 코드로 확인하고 한 번 더 다듬는다
+    let issues = findIssues(post);
+    if (issues.length) {
+      console.log(`[queue] 규칙 위반 ${issues.length}장 → 다듬기`);
+      try {
+        const fixed = parseJson(
+          await claude({
+            system: polishSystem(),
+            user: polishUser(post, issues),
+            model: CHECKER_MODEL,
+            maxTokens: 2000,
+          }),
+        );
+        const n = applyPolish(post, fixed);
+        issues = findIssues(post);
+        console.log(`[queue] ${n}장 반영, 남은 위반 ${issues.length}장`);
+      } catch (e) {
+        console.warn(`[queue] 다듬기 실패(원고는 유지): ${e.message}`);
+      }
+      if (issues.length) {
+        check.notes = [
+          ...(check.notes || []),
+          `※ 길이·표기 규칙을 넘긴 슬라이드가 남아 있습니다: ${issues
+            .map((i) => `${i.index + 1}번(${i.problems.join(", ")})`)
+            .join(" / ")}`,
+        ];
+      }
+    }
+
+    // 4) 용어·해시태그·금칙어
     const hits = finalize(post, rules);
     if (hits.length) {
       console.log(`[queue] 금칙어 검출(${hits.join(", ")}) → 다른 주제로 재시도`);
@@ -85,7 +115,7 @@ async function buildOne(date) {
       review: { verdict: check.verdict || "ok", notes: check.notes || [] },
     });
 
-    // 4) 렌더
+    // 5) 렌더
     const dir = path.join(QUEUE, date);
     await renderPost(post, dir);
     writeJson(path.join(dir, "post.json"), post);

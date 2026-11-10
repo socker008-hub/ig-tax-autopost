@@ -2,8 +2,10 @@ import path from "node:path";
 import { QUEUE, QUEUE_DIR, WD, readJson, weekdayIdx } from "./util.mjs";
 import { L } from "./locale.mjs";
 
+// 승인·承認 둘 다 받는다. 이슈가 언어 분리 전후에 걸쳐 만들어지면 두 표기가 섞이는데,
+// 한쪽만 찾으면 체크해도 발행되지 않고 이유도 드러나지 않는다.
 export const checkboxRe = (date, checked) =>
-  new RegExp(`- \\[${checked ? "[xX]" : " "}\\] ${date} ${L.ui.approve}`);
+  new RegExp(`- \\[${checked ? "[xX]" : " "}\\] ${date} (?:승인|承認)`);
 
 export function section(date, { repo, branch, bust = "" }) {
   const post = readJson(path.join(QUEUE, date, "post.json"));
